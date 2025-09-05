@@ -30,6 +30,7 @@ h1 {
     height: 60px;
     background: #fff;
     border-radius: 50%;
+    box-sizing:border-box;
     box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     display: flex;
     align-items: center;

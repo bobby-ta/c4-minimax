@@ -10,7 +10,7 @@ const restartBtn = document.getElementById('restart');
 
 function createBoard() {
     gameBoard.innerHTML = '';
-    for (let r = 0; r < ROWS; r++) {
+    for (let r = ROWS-1; r > -1; r--) {
         board[r] = [];
         for (let c = 0; c < COLS; c++) {
             board[r][c] = null;
@@ -27,7 +27,7 @@ function createBoard() {
 function handleCellClick(e) {
     if (gameOver) return;
     const col = parseInt(e.target.dataset.col);
-    for (let r = ROWS - 1; r >= 0; r--) {
+    for (let r = ROWS-1; r > -1; r--) {
         if (!board[r][col]) {
             board[r][col] = currentPlayer;
             updateBoard();
