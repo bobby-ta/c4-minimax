@@ -6,6 +6,15 @@ using json = nlohmann::json;
 constexpr int ROWS = 6;
 constexpr int COLS = 7;
 
+
+/*
+IMPORTANT!!!
+
+REMEMBER ROW 5 IS THE TOP AND ROW 0 IS THE BOTTOM!!!
+SO IT LOOKS UPSIDE-DOWN IN TEXT REPRESENTATION!!!! 
+
+IMPORTANT!!!
+*/
 class Game {
     private:
     std::array<std::array<int, COLS>, ROWS> board;
@@ -19,6 +28,7 @@ class Game {
 
         json to_json() const {
             return json{
+                {"moveValid", moveValid},
                 {"row", row},
                 {"col", col},
                 {"win", win},
@@ -40,7 +50,8 @@ class Game {
         }
     }
 
-    std::string makeMove(int col) {
+    std::string makeMove(int player, int col) {
+        this->player = player;
         this->result.col = col;
         int row = this->whereTopRow(col);
 
@@ -99,7 +110,7 @@ class Game {
 
     bool boardFull() {
         for (int j=0;j<COLS;j++) {
-            if (this->board[0][j] == 0) {
+            if (this->board[5][j] == 0) {
                 return false;
             }
         }
@@ -118,9 +129,9 @@ void new_game() {
 }
 
 // Make a move and return JSON result
-const char* make_move(int col) {
+const char* make_move(int player, int col) {
     static std::string result;
-    result = game->makeMove(col); // makeMove should return a JSON string
+    result = game->makeMove(player, col); // makeMove should return a JSON string
     return result.c_str();
 }
 
