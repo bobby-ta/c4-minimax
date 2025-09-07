@@ -25,7 +25,7 @@ Module.onRuntimeInitialized = () => {
 
 function createBoard() {
     gameBoard.innerHTML = '';
-    for (let r = ROWS-1; r > -1; r--) {
+    /*for (let r = ROWS-1; r > -1; r--) {
         for (let c = 0; c < COLS; c++) {
             const cell = document.createElement('div');
             cell.classList.add('cell');
@@ -34,6 +34,21 @@ function createBoard() {
             cell.addEventListener('click', handleCellClick);
             gameBoard.appendChild(cell);
         }
+    }*/
+
+    for (let c=0;c<COLS;c++) {
+        const column = document.createElement("div");
+        column.classList.add("column");
+        column.dataset.col = c;
+        column.addEventListener('click', handleCellClick);
+        gameBoard.appendChild(column);
+        for (let r = ROWS-1; r > -1; r--) {
+            const cell = document.createElement("div");
+            cell.dataset.row = r;
+            cell.dataset.col = c;
+            column.appendChild(cell);
+            cell.classList.add("cell");
+        } 
     }
 }
 
@@ -50,10 +65,10 @@ function handleCellClick(e) {
         let pName = playerNames.get(currentPlayer);
         cell.classList.add(pName);
         if (result.win) {
-            message.textContent = `${pName.charAt(0).toUpperCase() + pName.slice(1)} wins!`;
+            showTerminalMsg(`${pName.charAt(0).toUpperCase() + pName.slice(1)} wins!`);
             gameOver = true;
         } else if (result.boardFull) {
-            message.textContent = "It's a draw!";
+            showTerminalMsg("It's a draw!");
             gameOver = true;
         } else {
             currentPlayer *= -1;
@@ -71,6 +86,16 @@ function handleCellClick(e) {
 
 }
 
+
+messageColors = new Map();
+messageColors.set(1, "#e74c3c");
+messageColors.set(-1, "#f1c40f");
+function showTerminalMsg(text) {
+    message.textContent = text;
+    message.style = `color: ${messageColors.get(currentPlayer)}`;
+    message.classList.add("terminal");
+}
+
 function clearBoard() {
     const cells = document.querySelectorAll('.cell');
     for (let r = 0; r < ROWS; r++) {
@@ -86,6 +111,9 @@ function restartGame() {
     currentPlayer = 1;
     gameOver = false;
     clearBoard();
+    message.classList.remove("terminal");
+    let defaultColour = getComputedStyle(document.body).getPropertyValue("--main");
+    message.style = `color: ${defaultColour}`;
     message.textContent = "Red's turn";
 }
 
