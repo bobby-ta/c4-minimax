@@ -50,8 +50,7 @@ class Game {
         }
     }
 
-    std::string makeMove(int player, int col) {
-        this->player = player;
+    std::string makeMove(int col) {
         this->result.col = col;
         int row = this->whereTopRow(col);
 
@@ -61,6 +60,8 @@ class Game {
             this->board[row][col] = this->player; //Put move down
             this->result.win = this->checkWin(row, col);
             this->result.boardFull = this->boardFull();
+
+            this->player *= -1; //Switch player only once board state has been altered;
         } else {
             this->result.moveValid = false;
         }
@@ -129,9 +130,9 @@ void new_game() {
 }
 
 // Make a move and return JSON result
-const char* make_move(int player, int col) {
+const char* make_move(int col) {
     static std::string result;
-    result = game->makeMove(player, col); // makeMove should return a JSON string
+    result = game->makeMove(col); // makeMove should return a JSON string
     return result.c_str();
 }
 

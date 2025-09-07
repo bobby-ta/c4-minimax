@@ -1740,7 +1740,7 @@ var _emscripten_stack_get_current = makeInvalidEarlyAccess('_emscripten_stack_ge
 
 function assignWasmExports(wasmExports) {
   Module['_new_game'] = _new_game = createExportWrapper('new_game', 0);
-  Module['_make_move'] = _make_move = createExportWrapper('make_move', 2);
+  Module['_make_move'] = _make_move = createExportWrapper('make_move', 1);
   _fflush = createExportWrapper('fflush', 1);
   _strerror = createExportWrapper('strerror', 1);
   _emscripten_stack_get_end = wasmExports['emscripten_stack_get_end'];

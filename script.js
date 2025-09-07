@@ -15,7 +15,7 @@ let makeMove, newGame;
 
 Module.onRuntimeInitialized = () => {
     // Wrap the C++ functions for JS
-    makeMove = Module.cwrap('make_move', 'string', ['number', 'number']);
+    makeMove = Module.cwrap('make_move', 'string', ['number']);
     newGame = Module.cwrap('new_game', null, []);
     newGame(); //Initialise game
     createBoard(); //Initialise display
@@ -40,7 +40,7 @@ function createBoard() {
 function handleCellClick(e) {
     if (gameOver) return;
     const col = parseInt(e.target.dataset.col);
-    const result = JSON.parse(makeMove(currentPlayer, col));
+    const result = JSON.parse(makeMove(col));
     console.log(result);
     if (!result.moveValid) {
         console.log("invalid")
