@@ -17,6 +17,7 @@ Module.onRuntimeInitialized = () => {
     // Wrap the C++ functions for JS
     makeMove = Module.cwrap('make_move', 'string', ['number']);
     newGame = Module.cwrap('new_game', null, []);
+    getBotMove = Module.cwrap('get_bot_move', 'number', ['number']);
     newGame(); //Initialise game
     createBoard(); //Initialise display
     message.textContent = "Red's turn";
@@ -55,6 +56,11 @@ function createBoard() {
 function handleCellClick(e) {
     if (gameOver) return;
     const col = parseInt(e.target.dataset.col);
+    processMove(col);
+    processMove(getBotMove(6));
+}
+
+function processMove(col) {
     const result = JSON.parse(makeMove(col));
     console.log(result);
     if (!result.moveValid) {
