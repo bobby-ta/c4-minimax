@@ -1,3 +1,11 @@
+//To my future self: i hope this finds you well. Debugging ts without copilot is hell how did i live for 17 years
+//Bug: c5r0 (35) renders as c4r3 (31)???? c6r0 also. maybe 31 is the limit???? 
+//Like it registers in lowestFree perfectly
+//Also win detection is fucked 
+//Why didn't I do this w internet fml
+//Also minimax is deterministic how's my bot gained free will bruh
+//Cba rn
+
 #include <iostream>
 #include <array>
 #include <limits>
@@ -5,7 +13,8 @@
 
 constexpr int ROWS = 6;
 constexpr int COLS = 7;
-constexpr int DEPTH = 3;
+constexpr int DEPTH = 4;
+constexpr long TOP = 0b1000000100000010000001000000100000010000001000000L; //Top guards for bitboard - 1 above each col of 0s
 
 /*
 IMPORTANT!!!
@@ -16,101 +25,95 @@ SO IT LOOKS UPSIDE-DOWN IN TEXT REPRESENTATION!!!!
 IMPORTANT!!!
 */
 class Game {
-private:
-    std::array<std::array<int, COLS>, ROWS> board{};
-    int player = 1; // player = -1 (X), bot = -1 (O)
-    std::array<int, 2> lastMove{-1, -1};
+//private:
+public:
+    //Bitboards and makeMove(), undoMove(), checkWin() and moveValid() adapted from
+    //https://github.com/denkspuren/BitboardC4/blob/master/BitboardDesign.md
+    /*
+      6 13 20 27 34 41 48   55 62     Additional row
+    +---------------------+ 
+    | 5 12 19 26 33 40 47 | 54 61     top row
+    | 4 11 18 25 32 39 46 | 53 60
+    | 3 10 17 24 31 38 45 | 52 59
+    | 2  9 16 23 30 37 44 | 51 58
+    | 1  8 15 22 29 36 43 | 50 57
+    | 0  7 14 21 28 35 42 | 49 56 63  bottom row
+    +---------------------+
+*/
+    long bitboards[2] = {0, 0}; //Player first, bot second
+    int lowestFree[COLS] = {0, 7, 14, 21, 28, 35, 42}; //Next cell to be filled for every column in order
+    int counter = 0; //Player even, bot odd; counter & 1 is identical to counter % 2
+    int moves[ROWS*COLS]; //Stack of moves (for undo)
 
 public:
-    Game() {
-        for (int i=0;i<ROWS;i++) {
-            for (int j=0;j<COLS;j++) {
-                board[i][j] = 0;
+    void placeMove(int col) {
+        //Create number where only the bit at the lowestFree position equals 1 (i.e. identify which cell to flip)
+        //Will be XOR'd to insert into bitboard
+        long move = 1L << lowestFree[col];
+
+        lowestFree[col]++; //Now the cell above becomes lowestFree
+        bitboards[counter & 1] ^= move;  //XOR in, i.e. turn the 0 at lowestFree to a 1
+        moves[counter] = col;
+        counter++;         
+    }
+
+    void undoMove() {
+        //Get the column
+        counter--;
+        int col = moves[counter];
+
+        lowestFree[col]--; //Set the cell (currently filled) to unfilled status
+
+        long move = 1L << lowestFree[col]; //Create number/index like in placeMove
+        bitboards[counter & 1] ^= move; //Flip cell at this index (XOR-ing turns 1 to 0)
+    }
+
+    bool checkWin(long bitboard) {
+        int directions[4] = {1, 7, 8, 6}; //vert/hor/diag up/diag down
+        for(int direction : directions) {
+            //If 4 in a row then last cell in sequence will always equal 1
+                //Because all the others will shift to it one by one
+            //Guard cells very important here; will always equal 0 in original bitboard
+                //So avoid false wins from overflow into next col
+            if ((bitboard & (bitboard >> direction) &
+            (bitboard >> (2 * direction)) & (bitboard >> (3 * direction))) != 0) {
+                return true;
             }
         }
+        return false;
+    }
+
+    bool moveValid(int col) {
+        //"If I insert a bit is it gonna go to a row other than top?"
+        return ((TOP & (1L << lowestFree[col])) == 0);
+    }
+
+    bool boardFull() {
+        for (int c=0;c<COLS;c++) {
+            if (moveValid(c)) return false;
+        }
+        return true;
     }
 
     void printBoard() const {
         std::cout << "\n";
         for (int r = ROWS - 1; r >= 0; r--) {
             std::cout << "|";
+            //r + 7*c
             for (int c = 0; c < COLS; c++) {
-                char ch = (board[r][c] == 1) ? 'X' : (board[r][c] == -1) ? 'O' : '.';
-                std::cout << ch << " ";
+                int cellIndex = r + 7*c;
+                long mask = 1L << cellIndex;
+                if ((bitboards[0] & mask) != 0) { //player
+                    std::cout << " X";
+                } else if ((bitboards[1] & mask) != 0) { //Bot placed it
+                    std::cout << " O";
+                } else {
+                    std::cout << " .";
+                }
             }
             std::cout << "|\n";
         }
-        std::cout << " 0 1 2 3 4 5 6\n";
-    }
-
-    bool moveValid(int col) const {
-        return col >= 0 && col < COLS && board[ROWS-1][col] == 0;
-    }
-
-    int lowestEmptyRow(int col) const {
-        for (int i = 0; i < ROWS; i++)
-            if (board[i][col] == 0)
-                return i;
-        return -1;
-    }
-
-    void placeMove(int col) {
-        int row = lowestEmptyRow(col);
-        if (row != -1) {
-            board[row][col] = player;
-            lastMove = {row, col};
-            player *= -1;
-        }
-    }
-
-    void undoMove(int col) {
-        for (int r = ROWS - 1; r >= 0; r--) {
-            if (board[r][col] != 0) {
-                board[r][col] = 0;
-                player *= -1;
-                break;
-            }
-        }
-    }
-
-    bool checkWin(int lastPlayer) {
-        int row = this->lastMove[0];
-        int col = this->lastMove[1];
-        const int vectors[4][2] {
-            {0, 1}, //hor
-            {1, 0}, //vert
-            {1, 1}, //diag up
-            {1, -1} //diag down
-        };
-        
-        for (auto& v:vectors) {
-            int count = 1;
-
-            //Check forwards
-            for (int i=1;i<4;i++) {
-                int r = row + i*v[0]; int c = col + i*v[1];
-                if (r < 0 || r >= ROWS || c < 0 || c >= COLS || this->board[r][c] != lastPlayer) break;
-                count++;
-            }
-
-            //Check backwards
-            for (int i=1;i<4;i++) {
-                int r = row - i*v[0]; int c = col - i*v[1];
-                if (r < 0 || r >= ROWS || c < 0 || c >= COLS || this->board[r][c] != lastPlayer) break;
-                count++;
-            }
-
-            if (count >= 4) return true;
-        }
-        return false;
-    }
-
-    bool boardFull() const {
-        for (int j = 0; j < COLS; j++)
-            if (board[ROWS-1][j] == 0) {
-                return false;
-            }
-        return true;
+        std::cout << "  0 1 2 3 4 5 6\n";
     }
 
     int evalBoardState() const {
@@ -126,13 +129,24 @@ public:
 
         int score = 0;
         for (int r = 0; r < ROWS; r++)
-            for (int c = 0; c < COLS; c++)
-                score += board[r][c] * squareScores[r][c];
-        return -score; //We want to maximise for bot (-1)
+            for (int c = 0; c < COLS; c++) {
+                int cellIndex = r + 7*c;
+                long mask = 1L << cellIndex; //Put 1 only at cellIndex, all 0s otherwise
+                if ((bitboards[0] & mask) != 0) { //Player placed it
+                    score -= squareScores[r][c];
+                } else if ((bitboards[1] & mask) != 0) { //Bot placed it
+                    score += squareScores[r][c];
+                }
+            }
+        return score;
     }
 
     int minimax(int depth, int alpha, int beta, bool isMaximisingPlayer, int& bestCol) {
-        if (lastMove[0] != -1 && checkWin(player * -1)) { //Don't checkWin for 1st move (dummy value will crash)
+        int player = counter&1;
+        if (checkWin(bitboards[player])) {
+            return isMaximisingPlayer ? 1000000 + depth : -1000000 - depth;
+        }
+        if (checkWin(bitboards[1-player])) { //Check if previous player won
             return isMaximisingPlayer ? -1000000 + depth : 1000000 - depth; //Reward win speed/punish loss speed
         }
         if (boardFull()) { //Draw
@@ -148,7 +162,7 @@ public:
                 placeMove(c);
                 int dummy;
                 int eval = minimax(depth-1, alpha, beta, false, dummy);
-                undoMove(c);
+                undoMove();
                 if (eval > maxEval) {
                     maxEval = eval;
                     if (depth == DEPTH) bestCol = c;
@@ -164,7 +178,7 @@ public:
                 placeMove(c);
                 int dummy;
                 int eval = minimax(depth-1, alpha, beta, true, dummy);
-                undoMove(c);
+                undoMove();
                 if (eval < minEval) minEval = eval;
                 beta = std::min(beta, eval);
                 if (beta <= alpha) break;
@@ -179,8 +193,10 @@ public:
         return bestCol;
     }
 
-    int getCurrentPlayer() const { return player; }
-    std::array<int, 2> getLastMove() const { return lastMove; }
+    int getCurrentPlayer() const {
+        return counter%2; 
+    }
+    bool accPlaying = true;
 };
 
 int main() {
@@ -190,7 +206,8 @@ int main() {
 
     bool gameOver = false;
     while (!gameOver) {
-        if (g.getCurrentPlayer() == 1) {
+        int player = g.getCurrentPlayer(); //Avoid confusion w player switches during move
+        if (player == 0) {
             int col;
 
             while (true) { //Validate move
@@ -207,9 +224,14 @@ int main() {
 
             g.placeMove(col);
             g.printBoard();
-            auto last = g.getLastMove();
 
-            if (g.checkWin(-g.getCurrentPlayer())) { //Negate because placing move switched player already
+            //DELETE LATER
+            for (int i=0;i<COLS;i++) {
+                std::cout << g.lowestFree[i] << ' ';
+            }
+            std::cout << '\n';
+
+            if (g.checkWin(g.bitboards[player])) { //Negate because placing move switched player already
                 std::cout << "You win!\n";
                 gameOver = true;
             } else if (g.boardFull()) {
@@ -217,18 +239,28 @@ int main() {
                 gameOver = true;
             }
         } else {
+            g.accPlaying = false;
             std::cout << "Processing...\n";
             int botCol = g.getBotMove(DEPTH);
+            g.accPlaying = true;
             g.placeMove(botCol);
             std::cout << "Bot chose column " << botCol << "\n";
             g.printBoard();
-            if (g.checkWin(-g.getCurrentPlayer())) {
+
+            //DELETE LATER
+            for (int i=0;i<COLS;i++) {
+                std::cout << g.lowestFree[i] << ' ';
+            }
+            std::cout << '\n';
+
+            if (g.checkWin(g.bitboards[player])) {
                 std::cout << "Bot wins!\n";
                 gameOver = true;
             } else if (g.boardFull()) {
                 std::cout << "Draw!\n";
                 gameOver = true;
             }
+
         }
     }
     return 0;
