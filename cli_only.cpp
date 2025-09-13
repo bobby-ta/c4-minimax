@@ -16,17 +16,8 @@ constexpr int COLS = 7;
 constexpr int DEPTH = 4;
 constexpr long TOP = 0b1000000100000010000001000000100000010000001000000L; //Top guards for bitboard - 1 above each col of 0s
 
-/*
-IMPORTANT!!!
-
-REMEMBER ROW 5 IS THE TOP AND ROW 0 IS THE BOTTOM!!!
-SO IT LOOKS UPSIDE-DOWN IN TEXT REPRESENTATION!!!! 
-
-IMPORTANT!!!
-*/
 class Game {
-//private:
-public:
+private:
     //Bitboards and makeMove(), undoMove(), checkWin() and moveValid() adapted from
     //https://github.com/denkspuren/BitboardC4/blob/master/BitboardDesign.md
     /*
@@ -68,7 +59,8 @@ public:
         bitboards[counter & 1] ^= move; //Flip cell at this index (XOR-ing turns 1 to 0)
     }
 
-    bool checkWin(long bitboard) {
+    bool checkWin(int player) {
+        long bitboard = bitboards[player];
         int directions[4] = {1, 7, 8, 6}; //vert/hor/diag up/diag down
         for(int direction : directions) {
             //If 4 in a row then last cell in sequence will always equal 1
@@ -143,11 +135,11 @@ public:
 
     int minimax(int depth, int alpha, int beta, bool isMaximisingPlayer, int& bestCol) {
         int player = counter&1;
-        if (checkWin(bitboards[player])) {
+        if (checkWin(player)) {
             return isMaximisingPlayer ? 1000000 + depth : -1000000 - depth;
         }
-        if (checkWin(bitboards[1-player])) { //Check if previous player won
-            return isMaximisingPlayer ? -1000000 + depth : 1000000 - depth; //Reward win speed/punish loss speed
+        if (checkWin(1 - player)) { //Check if previous player won
+            return isMaximisingPlayer ? -1000000 - depth : 1000000 + depth; //Reward win speed/punish loss speed
         }
         if (boardFull()) { //Draw
             return 0;
@@ -196,7 +188,6 @@ public:
     int getCurrentPlayer() const {
         return counter%2; 
     }
-    bool accPlaying = true;
 };
 
 int main() {
@@ -225,13 +216,7 @@ int main() {
             g.placeMove(col);
             g.printBoard();
 
-            //DELETE LATER
-            for (int i=0;i<COLS;i++) {
-                std::cout << g.lowestFree[i] << ' ';
-            }
-            std::cout << '\n';
-
-            if (g.checkWin(g.bitboards[player])) { //Negate because placing move switched player already
+            if (g.checkWin(player)) { //Negate because placing move switched player already
                 std::cout << "You win!\n";
                 gameOver = true;
             } else if (g.boardFull()) {
@@ -239,21 +224,13 @@ int main() {
                 gameOver = true;
             }
         } else {
-            g.accPlaying = false;
             std::cout << "Processing...\n";
             int botCol = g.getBotMove(DEPTH);
-            g.accPlaying = true;
             g.placeMove(botCol);
             std::cout << "Bot chose column " << botCol << "\n";
             g.printBoard();
 
-            //DELETE LATER
-            for (int i=0;i<COLS;i++) {
-                std::cout << g.lowestFree[i] << ' ';
-            }
-            std::cout << '\n';
-
-            if (g.checkWin(g.bitboards[player])) {
+            if (g.checkWin(player)) {
                 std::cout << "Bot wins!\n";
                 gameOver = true;
             } else if (g.boardFull()) {
