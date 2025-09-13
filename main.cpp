@@ -1,238 +1,211 @@
-#include <stdio.h>
-#include <array>
+//To my future self: i hope this finds you well. Debugging ts without copilot is hell how did i live for 17 years
+//Bug: c5r0 (35) renders as c4r3 (31)???? c6r0 also. maybe 31 is the limit???? 
+//Like it registers in lowestFree perfectly
+//Also win detection is fucked 
+//Why didn't I do this w internet fml
+//Also minimax is deterministic how's my bot gained free will bruh
+//Cba rn
+
+#include <iostream>
+#include <algorithm>
+#include <map>
+#include <string>
+#include <cstdint>
 #include "json.hpp"
 using json = nlohmann::json;
 
 constexpr int ROWS = 6;
 constexpr int COLS = 7;
-constexpr int DEPTH = 6;
+constexpr int DEPTH = 8;
+constexpr uint64_t TOP = 0b1000000100000010000001000000100000010000001000000ULL; //Top guards for bitboard - 1 above each col of 0s
 
-
-/*
-IMPORTANT!!!
-
-REMEMBER ROW 5 IS THE TOP AND ROW 0 IS THE BOTTOM!!!
-SO IT LOOKS UPSIDE-DOWN IN TEXT REPRESENTATION!!!! 
-
-IMPORTANT!!!
-*/
 class Game {
-    private:
-    std::array<std::array<int, COLS>, ROWS> board;
-    int player = 1; //player = 1, bot = -1
-    std::array<int, 2> lastMove;
-    struct moveResult {
-        bool moveValid;
-        int row; //0-ROWS if successful, -1 if unsuccessful
-        int col; //Redundant but makes sense to have
-        bool win; //Did move win?
-        bool boardFull; //Obvious
+private:
+    //Bitboards and makeMove(), undoMove(), checkWin() and moveValid() adapted from
+    //https://github.com/denkspuren/BitboardC4/blob/master/BitboardDesign.md
+    /*
+      6 13 20 27 34 41 48   55 62     Additional row
+    +---------------------+ 
+    | 5 12 19 26 33 40 47 | 54 61     top row
+    | 4 11 18 25 32 39 46 | 53 60
+    | 3 10 17 24 31 38 45 | 52 59
+    | 2  9 16 23 30 37 44 | 51 58
+    | 1  8 15 22 29 36 43 | 50 57
+    | 0  7 14 21 28 35 42 | 49 56 63  bottom row
+    +---------------------+
+*/
+    uint64_t bitboards[2] = {0, 0}; //Player first, bot second
+    int lowestFree[COLS] = {0, 7, 14, 21, 28, 35, 42}; //Next cell to be filled for every column in order
+    int counter = 0; //Player even, bot odd; counter & 1 is identical to counter % 2
+    int moves[ROWS*COLS]; //Stack of moves (for undo)
 
-        json to_json() const {
-            return json{
-                {"moveValid", moveValid},
-                {"row", row},
-                {"col", col},
-                {"win", win},
-                {"boardFull", boardFull}
-            };
-        }
-    };
+public:
+    int highestFilled(int col) {
+        int highestRow = lowestFree[col] % 7;
+        return (highestRow != 0) ? highestRow - 1 : -1; 
+        //Should never be -1; always called on filled cols
+    }
+    void placeMove(int col) {
+        //Create number where only the bit at the lowestFree position equals 1 (i.e. identify which cell to flip)
+        //Will be XOR'd to insert into bitboard
+        uint64_t move = 1ULL << lowestFree[col];
 
-    moveResult result;
-
-    public:
-    Game(const std::array<std::array<int, COLS>, ROWS>& board) : board(board) {}
-    
-    Game() {
-        for (int i=0;i<ROWS;i++) {
-            for (int j=0;j<COLS;j++) {
-                board[i][j] = 0;
-            }
-        }
+        lowestFree[col]++; //Now the cell above becomes lowestFree
+        bitboards[counter & 1] ^= move;  //XOR in, i.e. turn the 0 at lowestFree to a 1
+        moves[counter] = col;
+        counter++;         
     }
 
-    std::string makeMove(int col) { //For actual moves
-        this->result.col = col;
+    void undoMove() {
+        //Get the column
+        counter--;
+        int col = moves[counter];
 
-        if (this->moveValid(col)) {
-            this->result.moveValid = true;
-            this->result.row = this->lowestEmpty(col);
-            this->lastMove = {this->result.row, col}; //Will use for backtracking
-            this->board[this->result.row][col] = this->player; //Put move down
-            this->result.win = this->checkWin(this->player);
-            this->result.boardFull = this->boardFull();
+        lowestFree[col]--; //Set the cell (currently filled) to unfilled status
 
-            this->player *= -1; //Switch player only once board state has been altered;
-            
-            /*if (player == -1) {
-                this->makeMove(this->getBestMove(6));
-            }*/
-        } else {
-            this->result.moveValid = false;
-        }
-
-        std::string jsonStr = this->result.to_json().dump();
-        return jsonStr;
-    }
-
-    void placeMove(int col) { //For bot minimax eval only
-        int row = this->lowestEmpty(col);
-        if (row != -1) {
-            this->board[row][col] = this->player;
-            this->lastMove = {row, col};
-            player *= -1;
-        }
-    }
-
-    void undoMove(int col) {
-        for (int r = ROWS - 1; r >= 0; r--) {
-            if (board[r][col] != 0) {
-                board[r][col] = 0;
-                player *= -1;
-                break;
-            }
-        }
-    }
-
-    bool moveValid(int col) {
-        return this->board[5][col] == 0  && col < COLS && col >= 0;
-    }
-
-    int lowestEmpty(int col) {
-        for (int i=0;i<ROWS;i++) {
-            if (board[i][col] == 0) {
-                return i;
-            }
-        }
-        return -1;
+        uint64_t move = 1ULL << lowestFree[col]; //Create number/index like in placeMove
+        bitboards[counter & 1] ^= move; //Flip cell at this index (XOR-ing turns 1 to 0)
     }
 
     bool checkWin(int player) {
-        int row = this->lastMove[0];
-        int col = this->lastMove[1];
-        const int vectors[4][2] {
-            {0, 1}, //hor
-            {1, 0}, //vert
-            {1, 1}, //diag up
-            {1, -1} //diag down
-        };
-        
-        for (auto& v:vectors) {
-            int count = 1;
-
-            //Check forwards
-            for (int i=1;i<4;i++) {
-                int r = row + i*v[0]; int c = col + i*v[1];
-                if (r < 0 || r >= ROWS || c < 0 || c >= COLS || this->board[r][c] != player) break;
-                count++;
+        uint64_t bitboard = bitboards[player];
+        int directions[4] = {1, 7, 8, 6}; //vert/hor/diag up/diag down
+        for(int direction : directions) {
+            //If 4 in a row then last cell in sequence will always equal 1
+                //Because all the others will shift to it one by one
+            //Guard cells very important here; will always equal 0 in original bitboard
+                //So avoid false wins from overflow into next col
+            if ((bitboard & (bitboard >> direction) &
+            (bitboard >> (2 * direction)) & (bitboard >> (3 * direction))) != 0) {
+                return true;
             }
-
-            //Check backwards
-            for (int i=1;i<4;i++) {
-                int r = row - i*v[0]; int c = col - i*v[1];
-                if (r < 0 || r >= ROWS || c < 0 || c >= COLS || this->board[r][c] != player) break;
-                count++;
-            }
-
-            if (count >= 4) return true;
         }
         return false;
     }
 
+    bool moveValid(int col) {
+        //"If I insert a bit is it gonna go to a row other than top?"
+        return ((TOP & (1ULL << lowestFree[col])) == 0);
+    }
+
     bool boardFull() {
-        for (int j=0;j<COLS;j++) {
-            if (this->board[5][j] == 0) {
-                return false;
-            }
+        for (int c=0;c<COLS;c++) {
+            if (moveValid(c)) return false;
         }
         return true;
     }
 
-    int evalBoardState() {
+    void printBoard() const {
+        std::cout << "\n";
+        for (int r = ROWS - 1; r >= 0; r--) {
+            std::cout << "|";
+            //r + 7*c
+            for (int c = 0; c < COLS; c++) {
+                int cellIndex = r + 7*c;
+                uint64_t mask = 1ULL << cellIndex;
+                if ((bitboards[0] & mask) != 0) { //player
+                    std::cout << " X";
+                } else if ((bitboards[1] & mask) != 0) { //Bot placed it
+                    std::cout << " O";
+                } else {
+                    std::cout << " .";
+                }
+            }
+            std::cout << "|\n";
+        }
+        std::cout << "  0 1 2 3 4 5 6\n";
+    }
+
+    int evalBoardState() const {
         //H2 from https://www.researchgate.net/publication/331552609_Research_on_Different_Heuristics_for_Minimax_Algorithm_Insight_from_Connect-4_Game
         int squareScores[6][7] = {
             {3, 4, 5, 6, 5, 4, 3},
-            {4, 6, 8, 10, 8, 6, 4},
-            {5, 8, 11, 13, 11, 8, 5},
-            {5, 8, 11, 13, 11, 8, 5},
-            {4, 6, 8, 10, 8, 6, 4},
+            {4, 6, 8,10, 8, 6, 4},
+            {5, 8,11,13,11, 8, 5},
+            {5, 8,11,13,11, 8, 5},
+            {4, 6, 8,10, 8, 6, 4},
             {3, 4, 5, 6, 5, 4, 3}
         };
+
         int score = 0;
-        for (int c=0;c<COLS;c++) {
-            for (int r=0;r<ROWS;r++) {
-                if (this->board[r][c] == 0) {
-                    break; //Don't waste time multiplying the 0s
-                } else {
-                    score += (this->board[r][c]) * (squareScores[r][c]);
+        for (int r = 0; r < ROWS; r++)
+            for (int c = 0; c < COLS; c++) {
+                int cellIndex = r + 7*c;
+                uint64_t mask = 1ULL << cellIndex; //Put 1 only at cellIndex, all 0s otherwise
+                if ((bitboards[0] & mask) != 0) { //Player placed it
+                    score -= squareScores[r][c];
+                } else if ((bitboards[1] & mask) != 0) { //Bot placed it
+                    score += squareScores[r][c];
                 }
             }
-        }
-
-        //The bot is marked -1: bot advantage yields low score
-        //But we want to maximise bot and minimise player
-        //Therefore we switch signs to give high scores for bot advantage
-        //So that we don't get muddled up with signs in the minimax function itself
-        return -score;
+        return score;
     }
 
-    int minimax(int depth, bool isMaximisingPlayer) { //Calculates minimax only; helper for getBestMove
-        if (this->checkWin(this->player * -1)) {
-            return -
+    int minimax(int depth, int alpha, int beta, bool isMaximisingPlayer, int& bestCol) {
+        int player = counter&1;
+        if (checkWin(player)) {
+            return isMaximisingPlayer ? 1e6 + depth : -1e6 - depth;
         }
-        
-        if (depth == 0) {
-            return this->evalBoardState();
+        if (checkWin(1 - player)) { //Check if previous player won
+            return isMaximisingPlayer ? -1e6 - depth : 1e6 + depth; //Reward win speed/punish loss speed
         }
-        if (depth == 0 || this->checkWin(this->player * -1) || this->boardFull()) { //Already cycled to next player in placeMove; undo
-            return this->evalBoardState();
+        if (boardFull()) { //Draw
+            return 0;
         }
+        if (depth == 0)
+            return evalBoardState();
 
-        if (isMaximisingPlayer) { //bot's turn
-            int maxEval = -INFINITY;
-            for (int c=0;c<COLS;c++) {
-                if (moveValid(c)) {
-                    this->placeMove(c);
-                    int eval = minimax(depth-1, false);
-                    maxEval = std::max(eval, maxEval);
-                    this->undoMove(c);
+        if (isMaximisingPlayer) {
+            int maxEval = -1e6;
+            for (int c = 0; c < COLS; c++) {
+                if (!moveValid(c)) continue;
+                placeMove(c);
+                int dummy;
+                int eval = minimax(depth-1, alpha, beta, false, dummy);
+                undoMove();
+                if (eval > maxEval) {
+                    maxEval = eval;
+                    if (depth == DEPTH) bestCol = c;
                 }
+                alpha = std::max(alpha, eval);
+                if (beta <= alpha) break;
             }
             return maxEval;
         } else {
-            int minEval = INFINITY;
-            for (int c=0;c<COLS;c++) {
-                if (moveValid(c)) {
-                    this->placeMove(c);
-                    int eval = minimax(depth-1, true);
-                    minEval = std::min(eval, minEval);
-                    this->undoMove(c);
-                }
+            int minEval = 1e6;
+            for (int c = 0; c < COLS; c++) {
+                if (!moveValid(c)) continue;
+                placeMove(c);
+                int dummy;
+                int eval = minimax(depth-1, alpha, beta, true, dummy);
+                undoMove();
+                if (eval < minEval) minEval = eval;
+                beta = std::min(beta, eval);
+                if (beta <= alpha) break;
             }
             return minEval;
         }
     }
 
-    int getBotMove(int depth) { //ONLY run for the bot, so no need to check player turn
-        int max_score = -INFINITY;
-        int best = -1;
-        for (int c=0;c<COLS;c++) {
-            if (this->moveValid(c)) {
-                this->placeMove(c);
-                int score = this->minimax(depth, true);
-                if (score > max_score) {
-                    max_score = score;
-                    best = c;
-                }
-                this->undoMove(c);
-        }
-        return best;
+    int getBotMove(int depth) {
+        int bestCol = 0;
+        minimax(depth, -1e6, 1e6, true, bestCol);
+        return bestCol;
     }
 
+    int getCurrentPlayer() const {
+        return counter%2; 
+    }
 };
 
 Game* game = nullptr;
+
+const char* jsonify(std::map<std::string,int> outp) {
+    json j = outp;
+    static std::string result_str;
+    result_str = j.dump();
+    return result_str.c_str();
+}
 
 extern "C" {
 
@@ -242,15 +215,56 @@ extern "C" {
         game = new Game();
     }
 
-    // Make a move and return JSON result
     const char* make_move(int col) {
-        static std::string result;
-        result = game->makeMove(col); // makeMove should return a JSON string
-        return result.c_str();
-    }
+        /*{
+            [playerCol is already provided as arg]
+            moveValid: 0/1,
+            playerRow: 0-5,
+            botCol: 0-6 (-1 if player move finishes game),
+            botRow: 0-5 (-1 if player move finishes game), 
+            winner: -1 none/0 player/1 bot,
+            draw = 0/1
 
-    int get_bot_move(int depth) {
-        return game->getBotMove(depth);
+        }*/
+        //Setup
+        int winner = -1; bool draw = 0; int botCol = -1; int botRow = -1;
+
+        //PLAYER TURN
+
+        //If move invalid skip everything
+        if (!game->moveValid(col)) {
+            return jsonify({{"moveValid", false}});
+        }
+
+        game->placeMove(col);
+        int playerRow = game->highestFilled(col);
+
+        if (game->checkWin(0)) {
+            winner = 0;
+        } else if (game->boardFull()) {
+            draw = 1;
+        } else { //BOT TURN
+            botCol = game->getBotMove(DEPTH);
+            game->placeMove(botCol);
+            botRow = game->highestFilled(botCol);
+            if (game->checkWin(1)) {
+                winner = 1;
+            } else if (game->boardFull()) {
+                draw = 1;
+            } 
+        }
+        
+        std::map<std::string, int> res = {
+            {"moveValid", 1},
+            {"playerRow", playerRow},
+            {"botCol", botCol},
+            {"botRow", botRow},
+            {"winner", winner},
+            {"draw", draw}
+        };
+
+        return jsonify(res);
+        
     }
 
 }

@@ -1,10 +1,4 @@
-//To my future self: i hope this finds you well. Debugging ts without copilot is hell how did i live for 17 years
-//Bug: c5r0 (35) renders as c4r3 (31)???? c6r0 also. maybe 31 is the limit???? 
-//Like it registers in lowestFree perfectly
-//Also win detection is fucked 
-//Why didn't I do this w internet fml
-//Also minimax is deterministic how's my bot gained free will bruh
-//Cba rn
+//Game logic with bitboards and CLI
 
 #include <iostream>
 #include <array>

@@ -1,9 +1,11 @@
+//Game logic with bitboards and GUI
+
 const ROWS = 6;
 const COLS = 7;
-let currentPlayer = 1;
+let currentPlayer = 0;
 const playerNames = new Map();
-playerNames.set(1, "red"); //player
-playerNames.set(-1, "yellow"); //bot
+playerNames.set(0, "red"); //player
+playerNames.set(1, "yellow"); //bot
 let gameOver = false;
 
 const gameBoard = document.getElementById('game-board');
@@ -17,7 +19,6 @@ Module.onRuntimeInitialized = () => {
     // Wrap the C++ functions for JS
     makeMove = Module.cwrap('make_move', 'string', ['number']);
     newGame = Module.cwrap('new_game', null, []);
-    getBotMove = Module.cwrap('get_bot_move', 'number', ['number']);
     newGame(); //Initialise game
     createBoard(); //Initialise display
     message.textContent = "Red's turn";
@@ -26,16 +27,6 @@ Module.onRuntimeInitialized = () => {
 
 function createBoard() {
     gameBoard.innerHTML = '';
-    /*for (let r = ROWS-1; r > -1; r--) {
-        for (let c = 0; c < COLS; c++) {
-            const cell = document.createElement('div');
-            cell.classList.add('cell');
-            cell.dataset.row = r;
-            cell.dataset.col = c;
-            cell.addEventListener('click', handleCellClick);
-            gameBoard.appendChild(cell);
-        }
-    }*/
 
     for (let c=0;c<COLS;c++) {
         const column = document.createElement("div");
@@ -57,48 +48,46 @@ function handleCellClick(e) {
     if (gameOver) return;
     const col = parseInt(e.target.dataset.col);
     processMove(col);
-    processMove(getBotMove(6));
 }
 
 function processMove(col) {
-    const result = JSON.parse(makeMove(col));
-    console.log(result);
-    if (!result.moveValid) {
-        console.log("invalid")
+    const res = JSON.parse(makeMove(col));
+    if (!res.moveValid) {
         return;
     } else {
-        const cell = document.querySelector(`.cell[data-row="${result.row}"][data-col="${col}"]`);
-        let pName = playerNames.get(currentPlayer);
-        cell.classList.add(pName);
-        if (result.win) {
-            showTerminalMsg(`${pName.charAt(0).toUpperCase() + pName.slice(1)} wins!`);
+        //Mark player cell
+        const playerCell = document.querySelector(`.cell[data-row="${res.playerRow}"][data-col="${col}"]`);
+        playerCell.classList.add("red");
+
+        if (res.botCol != -1) { //Bot made move
+            const botCell = document.querySelector(`.cell[data-row="${res.botRow}"][data-col="${res.botCol}"]`);
+            botCell.classList.add("yellow");
+        }
+
+        if (res.winner == 0) {
+            showTerminalMsg(0);
             gameOver = true;
-        } else if (result.boardFull) {
-            showTerminalMsg("It's a draw!");
+        } else if (res.winner == 1) {
+            showTerminalMsg(1);
             gameOver = true;
-        } else {
-            currentPlayer *= -1;
-            pName = playerNames.get(currentPlayer);
-            message.textContent = `${pName.charAt(0).toUpperCase() + pName.slice(1)}'s turn`;
+        } else if (res.draw) {
+            showTerminalMsg(-1);
+            gameOver = true;
         }
     }
-    
-    //Call makeMove from the WASM
-    //Parse the JSON return
-    //If JSON(moveValid) then set cell[col][JSON(row)] to current player's colour
-    //If JSON(win) then put "[current player] wins!" in DOM and freeze game
-        //Else if JSON(boardFull) then put "Draw!" in DOM and freeze game
-        //Else switch player and continue
-
 }
 
 
-messageColors = new Map();
-messageColors.set(1, "#e74c3c");
-messageColors.set(-1, "#f1c40f");
-function showTerminalMsg(text) {
-    message.textContent = text;
-    message.style = `color: ${messageColors.get(currentPlayer)}`;
+function showTerminalMsg(scenario) {
+    if (scenario == -1) {
+        message.textContent = "It's a draw!";
+    } else if (scenario == 0) {
+        message.textContent = "Red wins!";
+        message.style = "color: #e74c3c";
+    } else {
+        message.textContent = "Yellow wins!";
+        message.style = "color: #f1c40f";
+    }
     message.classList.add("terminal");
 }
 

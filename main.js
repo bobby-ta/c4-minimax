@@ -582,7 +582,7 @@ function createExportWrapper(name, nargs) {
 var wasmBinaryFile;
 
 function findWasmBinary() {
-    return locateFile('game.wasm');
+    return locateFile('main.wasm');
 }
 
 function getBinarySync(file) {
@@ -1250,7 +1250,6 @@ async function createWasm() {
       ret = onDone(ret);
       return ret;
     };
-
   
     /**
      * @param {string=} returnType
@@ -1310,7 +1309,6 @@ Module['FS_createPreloadedFile'] = FS.createPreloadedFile;
 }
 
 // Begin runtime exports
-  Module['ccall'] = ccall;
   Module['cwrap'] = cwrap;
   var missingLibrarySymbols = [
   'writeI53ToI64',
@@ -1529,6 +1527,7 @@ missingLibrarySymbols.forEach(missingLibrarySymbol)
   'removeRunDependency',
   'addOnPreRun',
   'addOnPostRun',
+  'ccall',
   'freeTableIndexes',
   'functionsInTableMap',
   'setValue',
@@ -1728,7 +1727,6 @@ function checkIncomingModuleAPI() {
 // Imports from the Wasm binary.
 var _new_game = Module['_new_game'] = makeInvalidEarlyAccess('_new_game');
 var _make_move = Module['_make_move'] = makeInvalidEarlyAccess('_make_move');
-var _get_bot_move = Module['_get_bot_move'] = makeInvalidEarlyAccess('_get_bot_move');
 var _fflush = makeInvalidEarlyAccess('_fflush');
 var _strerror = makeInvalidEarlyAccess('_strerror');
 var _emscripten_stack_get_end = makeInvalidEarlyAccess('_emscripten_stack_get_end');
@@ -1742,7 +1740,6 @@ var _emscripten_stack_get_current = makeInvalidEarlyAccess('_emscripten_stack_ge
 function assignWasmExports(wasmExports) {
   Module['_new_game'] = _new_game = createExportWrapper('new_game', 0);
   Module['_make_move'] = _make_move = createExportWrapper('make_move', 1);
-  Module['_get_bot_move'] = _get_bot_move = createExportWrapper('get_bot_move', 1);
   _fflush = createExportWrapper('fflush', 1);
   _strerror = createExportWrapper('strerror', 1);
   _emscripten_stack_get_end = wasmExports['emscripten_stack_get_end'];
