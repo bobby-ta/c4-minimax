@@ -1,5 +1,3 @@
-//Game logic with bitboards and GUI
-
 const ROWS = 6;
 const COLS = 7;
 let currentPlayer = 0;
@@ -21,7 +19,6 @@ Module.onRuntimeInitialized = () => {
     newGame = Module.cwrap('new_game', null, []);
     newGame(); //Initialise game
     createBoard(); //Initialise display
-    message.textContent = "Red's turn";
 };
 //end WASM stuff
 
@@ -109,7 +106,6 @@ function restartGame() {
     message.classList.remove("terminal");
     let defaultColour = getComputedStyle(document.body).getPropertyValue("--main");
     message.style = `color: ${defaultColour}`;
-    message.textContent = "Red's turn";
 }
 
 restartBtn.addEventListener('click', restartGame);

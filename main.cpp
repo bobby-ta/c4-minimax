@@ -1,11 +1,3 @@
-//To my future self: i hope this finds you well. Debugging ts without copilot is hell how did i live for 17 years
-//Bug: c5r0 (35) renders as c4r3 (31)???? c6r0 also. maybe 31 is the limit???? 
-//Like it registers in lowestFree perfectly
-//Also win detection is fucked 
-//Why didn't I do this w internet fml
-//Also minimax is deterministic how's my bot gained free will bruh
-//Cba rn
-
 #include <iostream>
 #include <algorithm>
 #include <map>
@@ -16,7 +8,7 @@ using json = nlohmann::json;
 
 constexpr int ROWS = 6;
 constexpr int COLS = 7;
-constexpr int DEPTH = 8;
+constexpr int DEPTH = 10;
 constexpr uint64_t TOP = 0b1000000100000010000001000000100000010000001000000ULL; //Top guards for bitboard - 1 above each col of 0s
 
 class Game {
@@ -143,6 +135,7 @@ public:
 
     int minimax(int depth, int alpha, int beta, bool isMaximisingPlayer, int& bestCol) {
         int player = counter&1;
+        int colOrder[COLS] = {3, 2, 4, 1, 5, 0, 6}; //Check middle columns (best moves) first to prune efficiently
         if (checkWin(player)) {
             return isMaximisingPlayer ? 1e6 + depth : -1e6 - depth;
         }
@@ -157,7 +150,8 @@ public:
 
         if (isMaximisingPlayer) {
             int maxEval = -1e6;
-            for (int c = 0; c < COLS; c++) {
+            for (int i = 0; i < COLS; i++) {
+                int c = colOrder[i];
                 if (!moveValid(c)) continue;
                 placeMove(c);
                 int dummy;
@@ -168,12 +162,13 @@ public:
                     if (depth == DEPTH) bestCol = c;
                 }
                 alpha = std::max(alpha, eval);
-                if (beta <= alpha) break;
+                if (beta <= alpha) break; //Don't bother trying poor moves
             }
             return maxEval;
         } else {
             int minEval = 1e6;
-            for (int c = 0; c < COLS; c++) {
+            for (int i = 0; i < COLS; i++) {
+                int c = colOrder[i];
                 if (!moveValid(c)) continue;
                 placeMove(c);
                 int dummy;
