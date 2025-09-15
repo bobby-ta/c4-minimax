@@ -1,11 +1,14 @@
+//Game logic with arrays and no A/B pruning
+
 #include <iostream>
 #include <array>
 #include <limits>
 #include <algorithm>
+#include <chrono>
 
 constexpr int ROWS = 6;
 constexpr int COLS = 7;
-constexpr int DEPTH = 3;
+constexpr int DEPTH = 9;
 
 /*
 IMPORTANT!!!
@@ -131,51 +134,47 @@ public:
         return -score; //We want to maximise for bot (-1)
     }
 
-    int minimax(int depth, int alpha, int beta, bool isMaximisingPlayer, int& bestCol) {
-        if (lastMove[0] != -1 && checkWin(player * -1)) { //Don't checkWin for 1st move (dummy value will crash)
-            return isMaximisingPlayer ? -1000000 + depth : 1000000 - depth; //Reward win speed/punish loss speed
-        }
-        if (boardFull()) { //Draw
-            return 0;
-        }
-        if (depth == 0)
-            return evalBoardState();
-
-        if (isMaximisingPlayer) {
-            int maxEval = -10000000;
-            for (int c = 0; c < COLS; c++) {
-                if (!moveValid(c)) continue;
-                placeMove(c);
-                int dummy;
-                int eval = minimax(depth-1, alpha, beta, false, dummy);
-                undoMove(c);
-                if (eval > maxEval) {
-                    maxEval = eval;
-                    if (depth == DEPTH) bestCol = c;
-                }
-                alpha = std::max(alpha, eval);
-                if (beta <= alpha) break;
-            }
-            return maxEval;
-        } else {
-            int minEval = 10000000;
-            for (int c = 0; c < COLS; c++) {
-                if (!moveValid(c)) continue;
-                placeMove(c);
-                int dummy;
-                int eval = minimax(depth-1, alpha, beta, true, dummy);
-                undoMove(c);
-                if (eval < minEval) minEval = eval;
-                beta = std::min(beta, eval);
-                if (beta <= alpha) break;
-            }
-            return minEval;
-        }
+    int minimax(int depth, bool isMaximisingPlayer, int& bestCol) {
+    if (lastMove[0] != -1 && checkWin(player * -1)) {
+        return isMaximisingPlayer ? -1000000 + depth : 1000000 - depth;
     }
+    if (boardFull()) {
+        return 0;
+    }
+    if (depth == 0)
+        return evalBoardState();
+
+    if (isMaximisingPlayer) {
+        int maxEval = -10000000;
+        for (int c = 0; c < COLS; c++) {
+            if (!moveValid(c)) continue;
+            placeMove(c);
+            int dummy;
+            int eval = minimax(depth-1, false, dummy);
+            undoMove(c);
+            if (eval > maxEval) {
+                maxEval = eval;
+                if (depth == DEPTH) bestCol = c;
+            }
+        }
+        return maxEval;
+    } else {
+        int minEval = 10000000;
+        for (int c = 0; c < COLS; c++) {
+            if (!moveValid(c)) continue;
+            placeMove(c);
+            int dummy;
+            int eval = minimax(depth-1, true, dummy);
+            undoMove(c);
+            if (eval < minEval) minEval = eval;
+        }
+        return minEval;
+    }
+}
 
     int getBotMove(int depth) {
         int bestCol = 0;
-        minimax(depth, -10000000, 10000000, true, bestCol);
+        minimax(depth, true, bestCol);
         return bestCol;
     }
 
@@ -217,10 +216,15 @@ int main() {
                 gameOver = true;
             }
         } else {
+            auto start = std::chrono::high_resolution_clock::now();
             std::cout << "Processing...\n";
             int botCol = g.getBotMove(DEPTH);
             g.placeMove(botCol);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = end - start;
+            std::cout << "Bot move took " << elapsed.count() << " seconds\n";
             std::cout << "Bot chose column " << botCol << "\n";
+            
             g.printBoard();
             if (g.checkWin(-g.getCurrentPlayer())) {
                 std::cout << "Bot wins!\n";

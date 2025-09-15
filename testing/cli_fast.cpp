@@ -1,13 +1,14 @@
-//Game logic with bitboards and CLI
+//Game logic with bitboards and A/B pruning
 
 #include <iostream>
 #include <array>
 #include <limits>
 #include <algorithm>
+#include <chrono>
 
 constexpr int ROWS = 6;
 constexpr int COLS = 7;
-constexpr int DEPTH = 4;
+constexpr int DEPTH = 9;
 constexpr long TOP = 0b1000000100000010000001000000100000010000001000000L; //Top guards for bitboard - 1 above each col of 0s
 
 class Game {
@@ -129,11 +130,12 @@ public:
 
     int minimax(int depth, int alpha, int beta, bool isMaximisingPlayer, int& bestCol) {
         int player = counter&1;
+        int colOrder[COLS] = {3, 2, 4, 1, 5, 0, 6}; //Check middle columns (best moves) first to prune efficiently
         if (checkWin(player)) {
-            return isMaximisingPlayer ? 1000000 + depth : -1000000 - depth;
+            return isMaximisingPlayer ? 1e6 + depth : -1e6 - depth;
         }
         if (checkWin(1 - player)) { //Check if previous player won
-            return isMaximisingPlayer ? -1000000 - depth : 1000000 + depth; //Reward win speed/punish loss speed
+            return isMaximisingPlayer ? -1e6 - depth : 1e6 + depth; //Reward win speed/punish loss speed
         }
         if (boardFull()) { //Draw
             return 0;
@@ -142,8 +144,9 @@ public:
             return evalBoardState();
 
         if (isMaximisingPlayer) {
-            int maxEval = -10000000;
-            for (int c = 0; c < COLS; c++) {
+            int maxEval = -1e6;
+            for (int i = 0; i < COLS; i++) {
+                int c = colOrder[i];
                 if (!moveValid(c)) continue;
                 placeMove(c);
                 int dummy;
@@ -154,12 +157,13 @@ public:
                     if (depth == DEPTH) bestCol = c;
                 }
                 alpha = std::max(alpha, eval);
-                if (beta <= alpha) break;
+                if (beta <= alpha) break; //Don't bother trying poor moves
             }
             return maxEval;
         } else {
-            int minEval = 10000000;
-            for (int c = 0; c < COLS; c++) {
+            int minEval = 1e6;
+            for (int i = 0; i < COLS; i++) {
+                int c = colOrder[i];
                 if (!moveValid(c)) continue;
                 placeMove(c);
                 int dummy;
@@ -218,9 +222,14 @@ int main() {
                 gameOver = true;
             }
         } else {
+            auto start = std::chrono::high_resolution_clock::now();
             std::cout << "Processing...\n";
             int botCol = g.getBotMove(DEPTH);
             g.placeMove(botCol);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = end - start;
+            std::cout << "Bot move took " << elapsed.count() << " seconds\n";
+            
             std::cout << "Bot chose column " << botCol << "\n";
             g.printBoard();
 
